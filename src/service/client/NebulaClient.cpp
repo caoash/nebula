@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
   auto greeter = nebula::service::client::NebulaClient::make(node.toString());
 
   // ping the server
-  nebula::service::ServiceInfo info;
+  nebula::ServiceInfo info;
   auto hi = nebula::common::Ip::hostInfo();
 
   info.set_ipv4(hi.ipv4);

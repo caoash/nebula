@@ -56,6 +56,7 @@ using nebula::api::dsl::SortType;
 using nebula::api::dsl::starts;
 using nebula::api::dsl::table;
 
+using nebula::Operation;
 using nebula::common::Zip;
 using nebula::common::ZipFormat;
 using nebula::execution::BlockManager;
@@ -67,7 +68,6 @@ using nebula::execution::core::NodeConnector;
 using nebula::execution::core::ServerExecutor;
 using nebula::meta::NNode;
 using nebula::meta::Table;
-using nebula::service::Operation;
 using nebula::service::base::ErrorCode;
 using nebula::service::base::ServiceProperties;
 using nebula::surface::EmptyRowCursor;
@@ -401,7 +401,7 @@ std::shared_ptr<Expression> QueryHandler::buildMetric(const Metric& metric, cons
 
 inline Zip zip(const Predicate& pred) noexcept {
   switch (pred.zipformat()) {
-  case nebula::service::ZipFormat::DELTA: return Zip(pred.zip(), ZipFormat::DELTA);
+  case nebula::ZipFormat::DELTA: return Zip(pred.zip(), ZipFormat::DELTA);
   default: return Zip{ "", ZipFormat::UNKNOWN };
   }
 }

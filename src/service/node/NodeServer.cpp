@@ -270,7 +270,7 @@ void RunServer() {
   // for every second, ping discovery server
   const auto discovery = ReadNServer();
   const auto client = nebula::service::client::NebulaClient::make(discovery);
-  nebula::service::ServiceInfo info;
+  nebula::ServiceInfo info;
   if (discovery.size() > 0) {
     // if discovery is localhost, we use localhost to ping as well.
     // otherwise we use dns IPv4 to ping

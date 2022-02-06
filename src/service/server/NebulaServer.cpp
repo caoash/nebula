@@ -69,6 +69,8 @@ using grpc::ServerContext;
 using grpc::Status;
 using grpc::StatusCode;
 
+using nebula::ServiceInfo;
+using nebula::ServiceTier;
 using nebula::common::Chars;
 using nebula::common::Evidence;
 using nebula::common::Identifiable;
@@ -89,8 +91,6 @@ using nebula::meta::ClusterInfo;
 using nebula::meta::Table;
 using nebula::meta::TableSpec;
 using nebula::meta::TableSpecPtr;
-using nebula::service::ServiceInfo;
-using nebula::service::ServiceTier;
 using nebula::service::base::ErrorCode;
 using nebula::service::base::ServiceProperties;
 using nebula::service::node::RemoteNodeConnector;
