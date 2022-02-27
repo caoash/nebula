@@ -19,7 +19,7 @@
 #include "DataSurface.h"
 
 /**
- * 
+ *
  * Mock static row for schema "ROW<id:int, event:string, items:list<string>, flag:bool>"
  * This is used by test only - to hold data for verification.
  */
@@ -31,9 +31,10 @@ namespace surface {
     throw NException("x");              \
   }
 
+template <typename T>
 class StaticList : public ListData {
 public:
-  StaticList(std::vector<std::string> data) : ListData(data.size()), data_{ std::move(data) } {
+  StaticList(std::vector<T> data) : ListData(data.size()), data_{ std::move(data) } {
   }
 
   bool isNull(IndexType) const override {
@@ -41,20 +42,54 @@ public:
   }
 
   std::string_view readString(IndexType index) const override {
-    return data_.at(index);
+    if constexpr (std::is_same_v<T, std::string>) {
+      return data_.at(index);
+    }
+
+    throw NException("x");
+  }
+
+  int32_t readInt(IndexType index) const override {
+    if constexpr (std::is_same_v<T, int32_t>) {
+      return data_.at(index);
+    }
+
+    throw NException("x");
   }
 
   NOT_IMPL_FUNC(bool, readBool)
   NOT_IMPL_FUNC(int8_t, readByte)
   NOT_IMPL_FUNC(int16_t, readShort)
-  NOT_IMPL_FUNC(int32_t, readInt)
   NOT_IMPL_FUNC(int64_t, readLong)
   NOT_IMPL_FUNC(float, readFloat)
   NOT_IMPL_FUNC(double, readDouble)
   NOT_IMPL_FUNC(int128_t, readInt128)
 
 private:
-  std::vector<std::string> data_;
+  std::vector<T> data_;
+};
+
+class StaticMap : public nebula::surface::MapData {
+public:
+  StaticMap(std::vector<std::string> keys, std::vector<int32_t> values)
+    : MapData(keys.size()),
+      keys_{ std::move(keys) },
+      values_{ std::move(values) } {}
+  virtual ~StaticMap() = default;
+
+  virtual std::unique_ptr<nebula::surface::ListData> readKeys() const override {
+    return std::make_unique<StaticList<std::string>>(keys_);
+  }
+
+  virtual std::unique_ptr<nebula::surface::ListData> readValues() const override {
+    return std::make_unique<StaticList<int32_t>>(values_);
+  }
+
+private:
+  // keys list data
+  std::vector<std::string> keys_;
+  // values list data
+  std::vector<int32_t> values_;
 };
 
 #undef NOT_IMPL_FUNC
@@ -64,6 +99,20 @@ private:
     throw NException("x");                       \
   }
 
+// utility method
+template <typename T>
+void saveList(ListData* list, std::vector<T>& vec) {
+  vec.reserve(list->getItems());
+  for (size_t k = 0; k < vec.capacity(); ++k) {
+    if constexpr (std::is_same_v<T, int32_t>) {
+      vec.push_back(list->readInt(k));
+    }
+    if constexpr (std::is_same_v<T, std::string>) {
+      vec.push_back(std::string(list->readString(k)));
+    }
+  }
+}
+
 class StaticRow : public RowData {
 public:
   StaticRow(
@@ -71,16 +120,21 @@ public:
     int i,
     std::string_view s,
     std::unique_ptr<ListData> list,
+    std::unique_ptr<MapData> map,
     bool f,
     char b,
     int128_t i128,
     double d)
     : time_{ t }, id_{ i }, event_{ s }, flag_{ f }, byte_{ b }, i128_{ i128 }, d_{ d } {
     if (list != nullptr) {
-      items_.reserve(list->getItems());
-      for (size_t k = 0; k < items_.capacity(); ++k) {
-        items_.push_back(std::string(list->readString(k)));
-      }
+      saveList(list.get(), items_);
+    }
+
+    if (map != nullptr) {
+      auto keys = map->readKeys();
+      saveList(keys.get(), mapKeys_);
+      auto values = map->readValues();
+      saveList(values.get(), mapValues_);
     }
   }
 
@@ -150,22 +204,31 @@ public:
   }
 
   std::unique_ptr<ListData> readList(const std::string&) const override {
-    return items_.size() == 0 ? nullptr : std::make_unique<StaticList>(items_);
+    return items_.size() == 0 ? nullptr : std::make_unique<StaticList<std::string>>(items_);
   }
 
   std::unique_ptr<ListData> readList(IndexType) const override {
-    return items_.size() == 0 ? nullptr : std::make_unique<StaticList>(items_);
+    return items_.size() == 0 ? nullptr : std::make_unique<StaticList<std::string>>(items_);
+  }
+
+  std::unique_ptr<MapData> readMap(const std::string&) const override {
+    return mapKeys_.size() == 0 ? nullptr : std::make_unique<StaticMap>(mapKeys_, mapValues_);
+  }
+
+  std::unique_ptr<MapData> readMap(IndexType) const override {
+    return mapKeys_.size() == 0 ? nullptr : std::make_unique<StaticMap>(mapKeys_, mapValues_);
   }
 
   NOT_IMPL_FUNC(int16_t, readShort)
   NOT_IMPL_FUNC(float, readFloat)
-  NOT_IMPL_FUNC(std::unique_ptr<MapData>, readMap)
 
 private:
   int64_t time_;
   int id_;
   std::string event_;
   std::vector<std::string> items_;
+  std::vector<std::string> mapKeys_;
+  std::vector<int32_t> mapValues_;
   bool flag_;
   char byte_;
   int128_t i128_;

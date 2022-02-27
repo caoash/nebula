@@ -62,7 +62,7 @@ class TestTable : public Table {
 public:
   TestTable() : Table(NAME,
                       nebula::type::TypeSerializer::from(
-                        "ROW<_time_: bigint, id:int, event:string, tag:string, items:list<string>, flag:bool, value:tinyint, weight:double, stamp:int128, stack:string>"),
+                        "ROW<_time_: bigint, id:int, event:string, tag:string, items:list<string>, bags:map<string, int>, flag:bool, value:tinyint, weight:double, stamp:int128, stack:string>"),
                       CP(),
                       {}) {
     // make a test value eval list for testing

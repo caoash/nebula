@@ -29,7 +29,7 @@
 #include "type/Serde.h"
 
 /**
- * Flat Buffer is used to store / compute run time data. 
+ * Flat Buffer is used to store / compute run time data.
  * Test its interfaces and functions here.
  */
 namespace nebula {
@@ -78,7 +78,7 @@ TEST(FlatBufferTest, TestFlatBufferWrite) {
                      row.readInt("id"),
                      row.readString("event"),
                      row.readList("items"),
-                     // row.isNull("items") ? nullptr : row.readList("items"),
+                     row.readMap("bags"),
                      row.readBool("flag"),
                      row.readByte("value"),
                      row.readInt128("i128"),

@@ -119,7 +119,7 @@ TEST(BatchTest, TestBatchRead) {
                      row.readInt("id"),
                      row.readString("event"),
                      i % 3 != 0 ? nullptr : row.readList("items"),
-                     // row.isNull("items") ? nullptr : row.readList("items"),
+                     i % 2 == 0 ? nullptr : row.readMap("bags"),
                      row.readBool("flag"),
                      row.readByte("value"),
                      row.readInt128("i128"),
@@ -127,9 +127,9 @@ TEST(BatchTest, TestBatchRead) {
   }
 
   // print single row as string.
-
   auto line = [](const nebula::surface::RowData& r) {
-    // std::string s;
+    std::string s;
+    // TODO(cao): implement readList and readMap interface in Accessor
     // if (!r.isNull("items")) {
     //   const auto list = r.readList("items");
     //   for (auto k = 0; k < list->getItems(); ++k) {
@@ -137,11 +137,15 @@ TEST(BatchTest, TestBatchRead) {
     //   }
     // }
 
-    return fmt::format("({0}, {1}, {2})",
-                       r.readInt("id"), r.readString("event"), r.readBool("flag"));
+    return fmt::format("({0}, {1}, {2}, {3})",
+                       r.readInt("id"),
+                       r.readString("event"),
+                       r.readBool("flag"),
+                       s);
   };
   auto line2 = [](const nebula::surface::Accessor& r) {
-    // std::string s;
+    std::string s;
+    // TODO(cao): implement readList and readMap interface in Accessor
     // if (!r.isNull("items")) {
     //   const auto list = r.readList("items");
     //   for (auto k = 0; k < list->getItems(); ++k) {
@@ -149,10 +153,11 @@ TEST(BatchTest, TestBatchRead) {
     //   }
     // }
 
-    return fmt::format("({0}, {1}, {2})",
+    return fmt::format("({0}, {1}, {2}, {3})",
                        r.readInt("id").value_or(0),
                        r.readString("event").value_or(""),
-                       r.readBool("flag").value_or(false));
+                       r.readBool("flag").value_or(false),
+                       s);
   };
 
   // do write
@@ -204,6 +209,7 @@ TEST(BatchTest, TestBloomFilter) {
                                     i,
                                     "events",
                                     nullptr,
+                                    nullptr,
                                     false,
                                     0,
                                     0,
@@ -243,6 +249,7 @@ TEST(BatchTest, TestStringDictionary) {
                                     i,
                                     "nebula",
                                     nullptr,
+                                    nullptr,
                                     false,
                                     0,
                                     large,
@@ -279,6 +286,7 @@ TEST(BatchTest, TestDefaultValue) {
     nebula::surface::StaticRow row{ i,
                                     i,
                                     "events",
+                                    nullptr,
                                     nullptr,
                                     false,
                                     (char)(i % 32),
