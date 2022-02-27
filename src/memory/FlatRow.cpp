@@ -68,8 +68,11 @@ std::unique_ptr<ListData> FlatRow::readList(const std::string& field) const {
   return std::make_unique<FlatList>(size, header, offset + 6, slice_);
 }
 
-std::unique_ptr<MapData> FlatRow::readMap(const std::string&) const {
-  throw NException("Map not supported in flat row");
+std::unique_ptr<MapData> FlatRow::readMap(const std::string& field) const {
+  auto offset = meta_.at(field);
+  N_ENSURE(slice_.read<int16_t>(offset) == MAP_FLAG, "reading non-map field");
+  size_t size = slice_.read<int32_t>(offset + 2);
+  return std::make_unique<FlatMap>(field, size, *this);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////

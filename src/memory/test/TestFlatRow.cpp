@@ -16,11 +16,12 @@
 
 #include <glog/logging.h>
 #include <gtest/gtest.h>
+#include <unordered_map>
 
 #include "memory/FlatRow.h"
 
 /**
- * Flat Buffer is used to store / compute run time data. 
+ * Flat Buffer is used to store / compute run time data.
  * Test its interfaces and functions here.
  */
 namespace nebula {
@@ -85,6 +86,95 @@ TEST(FlatRowTest, TestFlatRowTreatMissingAsNulls) {
 
   FlatRow rowTreatsMissingAsNull(1024, true);
   EXPECT_TRUE(rowTreatsMissingAsNull.isNull("abc"));
+}
+
+TEST(FlatRowTest, TestMapReadWrite) {
+  // initialize a flat row with initial size
+  FlatRow row(1024);
+
+  // test string to string map
+  {
+    std::unordered_map<std::string, std::string> map = {
+      { "a", "1" },
+      { "bb", "2" },
+      { "ccc", "3" },
+    };
+
+    row.write("map", map);
+    auto map1 = row.readMap("map");
+    EXPECT_EQ(map1->getItems(), map.size());
+
+    auto keys = map1->readKeys();
+    auto values = map1->readValues();
+    auto size1 = keys->getItems();
+    auto size2 = values->getItems();
+    EXPECT_EQ(size1, map.size());
+    EXPECT_EQ(size2, map.size());
+    for (auto i = 0; i < size1; ++i) {
+      auto str = keys->readString(i);
+      EXPECT_EQ(map.at(std::string(str)), values->readString(i));
+    }
+  }
+
+  // test string to integer map
+  {
+    row.reset();
+    std::unordered_map<std::string, uint32_t> map = {
+      { "a", 1 },
+      { "bb", 2 },
+      { "ccc", 3 },
+    };
+
+    row.write("age", 39);
+    row.write("map", map);
+    row.write("name", "nebula");
+    auto map1 = row.readMap("map");
+    EXPECT_EQ(map1->getItems(), map.size());
+
+    auto keys = map1->readKeys();
+    auto values = map1->readValues();
+    auto size1 = keys->getItems();
+    auto size2 = values->getItems();
+    EXPECT_EQ(size1, map.size());
+    EXPECT_EQ(size2, map.size());
+    for (auto i = 0; i < size1; ++i) {
+      auto str = keys->readString(i);
+      EXPECT_EQ(map.at(std::string(str)), values->readInt(i));
+    }
+
+    EXPECT_EQ(row.readInt("age"), 39);
+    EXPECT_EQ(row.readString("name"), "nebula");
+  }
+
+  // test big int to int
+  {
+    row.reset();
+    std::unordered_map<size_t, uint32_t> map = {
+      { 1l, 1 },
+      { 2l, 2 },
+      { 3l, 3 },
+    };
+
+    row.write("age", 33);
+    row.write("map", map);
+    row.write("name", "nebula2");
+    auto map1 = row.readMap("map");
+    EXPECT_EQ(map1->getItems(), map.size());
+
+    auto keys = map1->readKeys();
+    auto values = map1->readValues();
+    auto size1 = keys->getItems();
+    auto size2 = values->getItems();
+    EXPECT_EQ(size1, map.size());
+    EXPECT_EQ(size2, map.size());
+    for (auto i = 0; i < size1; ++i) {
+      auto key = keys->readLong(i);
+      EXPECT_EQ(map.at(key), values->readInt(i));
+    }
+
+    EXPECT_EQ(row.readInt("age"), 33);
+    EXPECT_EQ(row.readString("name"), "nebula2");
+  }
 }
 
 } // namespace test

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <unordered_map>
+
 #include "common/Hash.h"
 #include "common/Memory.h"
 #include "type/Type.h"
@@ -25,15 +27,15 @@
 // DEFINE_int32(SLICE_SIZE, 64 * 1024, "slice size in bytes");
 
 /**
- * Define a key-value style storage on a flat memory chunk. 
+ * Define a key-value style storage on a flat memory chunk.
  * Supporting limited data type read and write without schema constraints.
- * 
+ *
  * Every key will get its offset when writing, and read will be random access by offset.
- * Supporting null value indicator in the storage. 
- * 
+ * Supporting null value indicator in the storage.
+ *
  * Reset will reset the writing cursor to beginning and wipe out all meta data.
  * Metadata is <key, offset>
- * 
+ *
  * Every value has size prefix, 1byte flag indicating if its null or not
  * Compound types are struct, map and list
  * PRIMITIVES
@@ -41,11 +43,11 @@
  * - 1byte flag + 4bytes size + {0, N} bytes for variable length value.
  * <p>
  * Struct
- * 1byte flag + {4 bytes size if flag=0} + repeat {field}
+ * 1byte flag + {4 bytes size if flag!=0} + repeat {field}
  * MAP
- * 1byte flag + {4 bytes items if flag=0} + {4 bytes size if not null and having items} + repeat {key, value}
+ * 1byte flag + {4 bytes items if flag!=0} + {4 bytes size if not null and having items} + repeat {key, value}
  * List
- * 1byte flag + {4 bytes items if flag=0} + {4 bytes size if not null and having items} + repeat {item}
+ * 1byte flag + {4 bytes items if flag!=0} + {4 bytes size if not null and having items} + repeat {item}
  */
 namespace nebula {
 namespace memory {
@@ -66,12 +68,15 @@ using nebula::type::TypeNode;
  * so row data memory may be 2x larger than original row data
  * <p>
  */
+static const auto mapKeyName = [](const std::string& name) { return fmt::format("{0}.key", name); };
+static const auto mapValueName = [](const std::string& name) { return fmt::format("{0}.value", name); };
 
 class FlatRow : public nebula::surface::RowData {
 public:
   static constexpr NByte NULL_BYTE = 0;
   static constexpr NByte STRING_FLAG = 127;
   static constexpr int16_t LIST_FLAG = 99 << 8;
+  static constexpr int16_t MAP_FLAG = 99 << 6;
 
   FlatRow(size_t initSliceSize, bool nullIfMissing = false)
     : slice_{ initSliceSize }, nullIfMissing_{ nullIfMissing }, cursor_{ 0 } {}
@@ -180,6 +185,31 @@ public:
     return cursor_ - start;
   }
 
+  template <typename KT, typename VT>
+  auto write(const std::string& name, const std::unordered_map<KT, VT>& map) {
+    // map will be stored as key list and value list
+    // this is simple for mapData read interface too
+    const auto size = map.size();
+    std::vector<KT> keys;
+    keys.reserve(size);
+    std::vector<VT> values;
+    values.reserve(size);
+    for (const auto& pair : map) {
+      keys.push_back(pair.first);
+      values.push_back(pair.second);
+    }
+
+    // format: [MAP_FLAG][Items][KEYS][VALUES]
+    // write flag, and reserve keys size (4bytes) and values size (4bytes)
+    const auto headerSize = 2 + 4;
+    auto pos = moveKey(name, headerSize);
+    slice_.write(pos, MAP_FLAG);
+    slice_.write(pos + 2, (uint32_t)size);
+    auto keySize = write(mapKeyName(name), keys);
+    auto valueSize = write(mapValueName(name), values);
+    return headerSize + keySize + valueSize;
+  }
+
   inline bool hasKey(const std::string& key) const noexcept {
     return meta_.find(key) != meta_.end();
   }
@@ -205,7 +235,7 @@ public:
 
 private:
   inline size_t moveKey(const std::string& key, size_t size) {
-    N_ENSURE(meta_.find(key) == meta_.end(), "do not overwrite key");
+    N_ENSURE(!hasKey(key), "do not overwrite key");
     // record key offset
     auto current = cursor_;
     meta_[key] = current;
@@ -256,6 +286,32 @@ private:
   size_t base_;
   // reference to data store
   const ExtendableSlice& slice_;
+};
+
+class FlatMap : public nebula::surface::MapData {
+public:
+  FlatMap(const std::string& field, size_t size, const FlatRow& flatRow)
+    : MapData(size),
+      keyField_{ mapKeyName(field) },
+      valueField_{ mapValueName(field) },
+      flatRow_{ flatRow } {}
+  virtual ~FlatMap() = default;
+
+  virtual std::unique_ptr<nebula::surface::ListData> readKeys() const override {
+    return flatRow_.readList(keyField_);
+  }
+
+  virtual std::unique_ptr<nebula::surface::ListData> readValues() const override {
+    return flatRow_.readList(valueField_);
+  }
+
+private:
+  // keys list data
+  std::string keyField_;
+  // values list data
+  std::string valueField_;
+  // reference to flat row
+  const FlatRow& flatRow_;
 };
 
 } // namespace memory
